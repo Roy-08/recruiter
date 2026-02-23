@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Interview from "@/models/Interview";
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Fetch the interview template
-    const template = await Interview.findById(templateId).lean();
+    const template = await Interview.findById(templateId).lean() as any;
     
     if (!template) {
       return NextResponse.json(
@@ -47,7 +48,44 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Create a new candidate response
+    // Check if a pending candidate response already exists for this user + template
+    // This prevents duplicate entries from page refreshes or React Strict Mode double-firing
+    const existingResponse = await CandidateResponse.findOne({
+      interviewId: templateId,
+      userEmail: userEmail,
+      status: "pending",
+    }).lean() as any;
+    
+    if (existingResponse) {
+      console.log('♻️ Returning existing pending candidate response:', existingResponse._id);
+      console.log('📋 For interview template:', templateId);
+      console.log('👤 Candidate:', userName, userEmail);
+      
+      return NextResponse.json({
+        success: true,
+        data: {
+          _id: existingResponse._id,
+          interviewId: templateId,
+          jobPosition: template.jobPosition,
+          userName: existingResponse.userName,
+          userEmail: existingResponse.userEmail,
+          status: existingResponse.status,
+          // Return template data for the interview
+          template: {
+            jobDescription: template.jobDescription,
+            duration: template.duration,
+            interviewTypes: template.interviewTypes,
+            experienceLevel: template.experienceLevel,
+            numberOfQuestions: template.numberOfQuestions,
+            questions: template.questions,
+            interviewData: template.interviewData,
+          }
+        },
+        message: "Existing candidate response found",
+      });
+    }
+    
+    // Create a new candidate response only if no pending one exists
     const candidateResponse = new CandidateResponse({
       interviewId: templateId,
       jobPosition: template.jobPosition,
