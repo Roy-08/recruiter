@@ -35,6 +35,8 @@ export default function DashboardPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [interviews, setInterviews] = useState<Interview[]>([]);
+  const [totalCandidates, setTotalCandidates] = useState(0);
+  const [completedCandidates, setCompletedCandidates] = useState(0);
   const [currentInterviewId, setCurrentInterviewId] = useState<string | null>(null);
   const [generatedQuestions, setGeneratedQuestions] = useState<Question[]>([]);
   const [interviewLink, setInterviewLink] = useState<string>("");
@@ -51,6 +53,7 @@ export default function DashboardPage() {
   useEffect(() => {
     setMounted(true);
     fetchInterviews();
+    fetchCandidateStats();
   }, []);
 
   const fetchInterviews = async () => {
@@ -71,6 +74,35 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error("Error fetching interviews:", error);
+    }
+  };
+
+  const fetchCandidateStats = async () => {
+    try {
+      const response = await fetch("/api/interviews/all");
+      if (!response.ok) {
+        console.error("Failed to fetch candidate stats:", response.status);
+        return;
+      }
+      const text = await response.text();
+      if (!text) {
+        console.error("Empty response from interviews/all API");
+        return;
+      }
+      const data = JSON.parse(text);
+      if (data.success && data.data) {
+        let total = 0;
+        let completed = 0;
+        data.data.forEach((interview: any) => {
+          const candidates = interview.candidates || [];
+          total += candidates.length;
+          completed += candidates.filter((c: any) => c.status === "completed").length;
+        });
+        setTotalCandidates(total);
+        setCompletedCandidates(completed);
+      }
+    } catch (error) {
+      console.error("Error fetching candidate stats:", error);
     }
   };
 
@@ -103,7 +135,7 @@ export default function DashboardPage() {
     },
     {
       title: "Completed",
-      value: interviews.filter(i => i.status === "completed").length.toString(),
+      value: completedCandidates.toString(),
       description: "Interviews finished",
       icon: (
         <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -116,7 +148,7 @@ export default function DashboardPage() {
     },
     {
       title: "Candidates",
-      value: "0",
+      value: totalCandidates.toString(),
       description: "Total candidates",
       icon: (
         <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -300,6 +332,7 @@ export default function DashboardPage() {
       numberOfQuestions: "",
     });
     await fetchInterviews();
+    await fetchCandidateStats();
   };
 
   const handleBack = () => {
